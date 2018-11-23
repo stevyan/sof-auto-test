@@ -59,7 +59,7 @@ function dict_retrieve #$1: dict, $2: func_cb
         for ckv in ${ckvlist[@]}; do
             local key=${ckv%=*}
             local val=${ckv#*=}
-            func_cb $key ${val//$ATU_REPL_SP/ }
+            $func_cb $key ${val//$ATU_REPL_SP/ }
         done
     fi
 }
@@ -98,10 +98,10 @@ function rpt
 
 function _def #$1: size, $2..$n: array, $...: definitions
 {
-    local n=$1
+    local size=$1
     shift
-    local exp_array=(${@:1:$n})
-    shift $n
+    local exp_array=(${@:1:$size})
+    shift $size
     local kv=${@:1}
     if [[ $kv != ${kv%=*} ]]; then
         eval $kv
@@ -114,12 +114,18 @@ function _def #$1: size, $2..$n: array, $...: definitions
     fi
 }
 
-function _undef #$@: array
+function _undef #$1: size, $2..$n: array, $...: undefined keys 
 {
+    local size=$1
+    shift
+    local exp_str=" ${@:1:$size} "
+    shift $size
     while [[ ${#@} -gt 0 ]]; do
         eval unset $1
+        exp_str=${exp_str// $1 / }
         shift
     done
+    echo "($exp_str)"
 }
 
 function __OCCUPY_LINE_DELETE_ME__

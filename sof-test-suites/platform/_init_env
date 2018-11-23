@@ -1,1 +1,17 @@
-echo "___init_env ......."
+#!/bin/bash
+
+#-----------------------------------------------------------------------------
+_EXPORT_VLIST=()
+
+function def
+{
+    _EXPORT_VLIST=$(_def ${#_EXPORT_VLIST[@]} ${_EXPORT_VLIST[@]} $*)
+}
+
+function undef
+{
+    _EXPORT_VLIST=$(_undef ${#_EXPORT_VLIST[@]} ${_EXPORT_VLIST[@]} $*)
+}
+#-----------------------------------------------------------------------------
+
+echo "---> `pwd`/_init_env executed!" 

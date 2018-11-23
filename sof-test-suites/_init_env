@@ -14,4 +14,13 @@ function undef
 }
 #-----------------------------------------------------------------------------
 
-echo "---> `pwd`/_init_env executed!" 
+def _TPLG_LIST
+function load_tplg #$1: tplgFile
+{
+    local tplgFile=$1
+    if [[ -f $tplgFile ]]; then
+        echo ""
+    fi
+}
+
+_TPLG_LIST=(123 4 5 6 7  8 9 11)

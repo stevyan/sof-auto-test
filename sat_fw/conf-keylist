@@ -1,0 +1,5 @@
+# key definition for _proj.cfg
+
+K_REPORT_ROOT='REPORT_ROOT'
+K_REPORT_TYPE='REPORT_TYPE'
+K_TOOLS_ROOT='TOOLS_ROOT'

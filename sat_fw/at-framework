@@ -1,47 +1,89 @@
 #!/bin/bash
 
-. $SAT_ROOT/sat_fw/at-utils
+#. $SAT_ROOT/sat_fw/at-utils
+#. $SAT_ROOT/sat_fw/conf-parser
+#. $SAT_ROOT/sat_fw/conf-keylist
 
 _L_INIT_ENV_CB=_init_env
 TEMPLATE_ROOT=template
 T_CASE_HEAD=_case_head.t
 T_CASE_TAIL=_case_tail.t
-F_TMP_CASE_LIST=.tscl.tmp~
-F_TMP_CASE_SH=.tscl.ex.tmp~
+F_CASES_LIST=.cl
+F_TMP_CASE_LIST=/tmp/.tscl.tmp~
+F_TMP_CASE_SH=/tmp/.tscl.ex.tmp~
 
-function execute_suite #$1: suite
+function prepare_project #$1: proj
+{
+    local proj=$1
+    local projConf=$(conf_general_load $proj/$F_PROJ_CONF)
+    dict_retrieve $projConf process_project_conf
+}
+
+function process_project_conf #$1: key, $2: val
+{
+    local key=$1
+    local val=${@:2}
+    case $key in
+        $K_REPORT_ROOT)
+            REPORT_ROOT=$val
+            ;;
+            
+        $K_REPORT_TYPE)
+            REPORT_TYPE=$val
+            ;;
+
+        $K_TOOLS_ROOT)
+            TOOLS_ROOT=$val
+            export PATH=$TOOLS_ROOT:$PATH
+            ;;
+    esac
+}
+
+function cleanup_project #$1: proj
+{
+    local proj=$1
+    local envPath=$PATH
+    export PATH=${envPath//$TOOLS_ROOT:/}
+}
+
+function execute_suite #$1: suite, $2: random
 {
     # suite must be a absolute path.
     local suite=$1
+    local random=$2
     [[ ${suite:0:1} != '/' ]] && {
         logw "Invalid suite path, skipping test suite."
         return 1
     }
 
-    local wd=`dirname $suite`
     logi "Begin executing test suite: "$suite
     local curr=$suite
+    local initList=()
 
     # locate the _init_env
-    while [[ ! -f $curr/$F_INIT_ENV && -n $curr ]]; do
+    while [[ -n $curr ]]; do
+        [[ -f $curr/$F_INIT_ENV ]] && initList=($curr/$F_INIT_ENV ${initList[@]})
         curr=${curr%/*}
     done
 
-    # TODO: need inherted from parent _init_env.
-    [[ -n $curr ]] && . $curr/$F_INIT_ENV || logi "No available _init_env for this suite, needn't init env."
+    # init the environment from high-level to low-level
+    for e in ${initList[@]}; do
+        logi $e
+        . $e
+    done
 
-    find $suite -type f > $F_TMP_CASE_LIST
-    while read line; do
-        fname=`basename $line`
-        case $fname in
-            $F_PROJ_CONF|$F_SUITE_CONF|$F_INIT_ENV|$F_CASES_FLAG)
+    load_case_list $suite $random
+
+    while read fname; do
+        case `basename $fname` in
+            $F_PROJ_CONF|$F_SUITE_CONF|$F_INIT_ENV|$F_CASES_LIST)
                 continue
                 ;;
         esac
 
-        logi "=> Executing test case: ["$fname"]"
+        logi "-> Executing test case: ["$fname"]"
         cat $SAT_ROOT/$TEMPLATE_ROOT/$T_CASE_HEAD > $F_TMP_CASE_SH
-        cat $line >> $F_TMP_CASE_SH
+        cat $suite/$fname >> $F_TMP_CASE_SH
         cat $SAT_ROOT/$TEMPLATE_ROOT/$T_CASE_TAIL >> $F_TMP_CASE_SH
         bash $F_TMP_CASE_SH
         logi "<= Executing test case completed!"
@@ -52,14 +94,61 @@ function execute_suite #$1: suite
     logi "End executing test suite: "$suite
 }
 
+function load_case_list #$1: suite, $2: random
+{
+    local suite=$1
+    local random=$2
+
+    rm -rf $F_TMP_CASE_LIST
+    touch $F_TMP_CASE_LIST
+
+    if [[ -f $suite/$F_CASES_LIST && $random != true ]]; then
+        cp -f $suite/$F_CASES_LIST $F_TMP_CASE_LIST
+    else
+        local flist=(`cd $suite; find -type f; cd - > /dev/null`)
+        if [[ $random == true ]]; then
+            # FIXME: need generate real random series.
+            local rflist=()
+            local cnt=${#flist[@]}
+            local i=$((RANDOM % cnt))
+            local bExist=false
+            local k=0
+            while [[ ${#rflist[@]} -ne $cnt ]]; do
+                for rf in ${rflist[@]}; do
+                    if [[ "$rf" == "${flist[i]}" ]]; then
+                        bExist=true
+                        break
+                    fi
+                done
+                if [[ $bExist == false ]]; then
+                    rflist=(${rflist[@]} ${flist[$i]})
+                    i=$(((i + 1) % cnt))
+                else
+                    i=$((RANDOM % cnt))
+                fi
+            done
+            flist=(${rflist[@]})
+        fi
+
+        for f in ${flist[@]}; do
+            case `basename $f` in
+                $F_PROJ_CONF|$F_SUITE_CONF|$F_INIT_ENV|$F_CASES_LIST)
+                    continue
+                    ;;
+            esac
+            echo $f >> $F_TMP_CASE_LIST
+        done
+    fi
+}
+
 function _case_failed
 {
     __case_failed
-    rpt $FAILED_INFO
+    rpt '<FAILED> '$FAILED_INFO
 }
 
 function _case_passed
 {
-    rpt $PASSED_INFO
+    rpt '<PASSED> '$PASSED_INFO
     __case_passed
 }
